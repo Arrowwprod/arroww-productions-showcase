@@ -95,20 +95,6 @@ export function Hero() {
       </div>
 
       <div className="relative mx-auto w-full max-w-7xl px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1 }}
-          className="flex items-center gap-3 mb-8"
-        >
-          <span className="inline-flex items-center gap-2 liquid-glass rounded-full px-3 py-1.5 text-xs font-medium text-foreground/80">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground" />
-            </span>
-            Arroww Productions — Available for Q3
-          </span>
-        </motion.div>
 
         <h1
           ref={titleRef}
