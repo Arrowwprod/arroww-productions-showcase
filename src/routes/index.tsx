@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useLenis } from "@/hooks/use-lenis";
 import { Dock } from "@/components/landing/Dock";
 import { Hero } from "@/components/landing/Hero";
-import { Marquee } from "@/components/landing/Marquee";
+
 import { Philosophy } from "@/components/landing/Philosophy";
 import { Services } from "@/components/landing/Services";
 import { Contact } from "@/components/landing/Contact";
@@ -36,7 +36,7 @@ function Index() {
     <main className="relative bg-background text-foreground">
       <Dock />
       <Hero />
-      <Marquee />
+      
       <Philosophy />
       <Services />
       <Contact />
