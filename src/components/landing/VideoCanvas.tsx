@@ -12,15 +12,24 @@ export function VideoCanvas() {
   const [loadedCount, setLoadedCount] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // SSR guard
-  useEffect(() => { setIsMounted(true); }, []);
+  // SSR & Mobile detection guard
+  useEffect(() => {
+    setIsMounted(true);
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // ── Preload WebP frames: Instant First Frame + Progressive Batch Loading ──
   useEffect(() => {
     if (!isMounted) return;
     let active = true;
     let loaded = 0;
+    const isMobileDevice = window.innerWidth < 768;
+    const step = isMobileDevice ? 3 : 1; // Downsample 3x on mobile to save memory and prevent OOM crash
     const images: HTMLImageElement[] = new Array(TOTAL_FRAMES);
 
     // 1. Load the first frame immediately so the site is instantly interactive
@@ -34,15 +43,17 @@ export function VideoCanvas() {
       setLoadedCount(1);
       setIsReady(true);
 
-      // 2. Load the remaining frames in sequential batches of 6 to prevent network & GPU congestion
+      // 2. Load the remaining frames in sequential batches to prevent network & GPU congestion
       const loadRemaining = async () => {
-        const batchSize = 6;
-        for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
+        const batchSize = isMobileDevice ? 4 : 6;
+        for (let i = step; i < TOTAL_FRAMES; i += step * batchSize) {
           if (!active) return;
           const batch = [];
 
-          for (let j = 0; j < batchSize && i + j < TOTAL_FRAMES; j++) {
-            const idx = i + j;
+          for (let j = 0; j < batchSize && i + j * step < TOTAL_FRAMES; j++) {
+            const idx = i + j * step;
+            if (idx === 0) continue; // Skip first frame (already loaded)
+            
             const img = new Image();
             images[idx] = img;
 
@@ -72,6 +83,20 @@ export function VideoCanvas() {
 
           // Wait for the current batch to be downloaded and decoded before requesting the next one
           await Promise.all(batch);
+        }
+
+        // Always load the very last frame to guarantee the ending visual is correct
+        const lastIdx = TOTAL_FRAMES - 1;
+        if (!images[lastIdx] && active) {
+          const img = new Image();
+          images[lastIdx] = img;
+          img.src = `/frames/frame_${String(lastIdx).padStart(3, "0")}.webp`;
+          img.decode().then(() => {
+            if (active) {
+              loaded++;
+              setLoadedCount(loaded);
+            }
+          }).catch(() => {});
         }
       };
 
@@ -123,9 +148,29 @@ export function VideoCanvas() {
     };
 
     const renderFrame = (idx: number) => {
-      const i   = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(idx)));
-      const img = imagesRef.current[i];
-      if (!img || img.naturalWidth === 0) return;
+      const targetIdx = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(idx)));
+      let img = imagesRef.current[targetIdx];
+      
+      // Nearest loaded frame fallback logic
+      if (!img || img.naturalWidth === 0) {
+        let nearestIdx = -1;
+        let minDiff = Infinity;
+        for (let k = 0; k < TOTAL_FRAMES; k++) {
+          const checkImg = imagesRef.current[k];
+          if (checkImg && checkImg.naturalWidth > 0) {
+            const diff = Math.abs(k - targetIdx);
+            if (diff < minDiff) {
+              minDiff = diff;
+              nearestIdx = k;
+            }
+          }
+        }
+        if (nearestIdx !== -1) {
+          img = imagesRef.current[nearestIdx];
+        } else {
+          return;
+        }
+      }
 
       // Draw using physical resolution of the canvas directly (bypassing subpixel transform blur)
       const cw = canvas.width;
@@ -181,7 +226,9 @@ export function VideoCanvas() {
 
   if (!isMounted) return null;
 
-  const pct = Math.round((loadedCount / TOTAL_FRAMES) * 100);
+  // Calculate actual display percentage dynamically based on step scaling
+  const maxPossibleFrames = isMobile ? Math.ceil(TOTAL_FRAMES / 3) + 1 : TOTAL_FRAMES;
+  const pct = Math.min(100, Math.round((loadedCount / maxPossibleFrames) * 100));
 
   return (
     <>
@@ -233,6 +280,10 @@ export function VideoCanvas() {
       <div style={{
         position: "fixed", inset: 0, zIndex: 0,
         pointerEvents: "none", overflow: "hidden",
+        transform: "translate3d(0, 0, 0)",
+        WebkitTransform: "translate3d(0, 0, 0)",
+        WebkitBackfaceVisibility: "hidden",
+        willChange: "transform",
       }}>
         <canvas
           ref={canvasRef}
@@ -241,7 +292,11 @@ export function VideoCanvas() {
             width: "100vw",
             height: "100vh",
             imageRendering: "auto",
-            filter: "contrast(1.06) brightness(1.03) saturate(1.03)",
+            filter: isMobile ? "none" : "contrast(1.06) brightness(1.03) saturate(1.03)",
+            transform: "translate3d(0, 0, 0)",
+            WebkitTransform: "translate3d(0, 0, 0)",
+            WebkitBackfaceVisibility: "hidden",
+            willChange: "transform",
           }}
         />
         {/* Cinematic gradient — darker at top/bottom and subtle center dark overlay for text legibility */}
