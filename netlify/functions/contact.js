@@ -8,14 +8,17 @@ export const handler = async (event) => {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
-  // CORS guard — tighten to your actual domain in production
+  // CORS guard — allow same-origin, localhost, Netlify subdomains, and custom domains
   const origin = event.headers.origin || "";
-  const allowedOrigins = [
-    "https://arrowwproductions.netlify.app",
-    "http://localhost:5173",
-    "http://localhost:3000",
-  ];
-  if (!allowedOrigins.includes(origin)) {
+  const host = event.headers.host || "";
+  const isAllowed =
+    !origin ||
+    origin.startsWith("http://localhost:") ||
+    origin.endsWith(".netlify.app") ||
+    origin === "https://arrowwproductions.netlify.app" ||
+    origin.includes(host);
+
+  if (!isAllowed) {
     return { statusCode: 403, body: "Forbidden" };
   }
 
@@ -98,7 +101,8 @@ export const handler = async (event) => {
       project: project.trim(),
     });
 
-    const response = await fetch("https://arrowwproductions.netlify.app/", {
+    const targetUrl = process.env.URL || (event.headers.host ? `https://${event.headers.host}` : "https://arrowwproductions.netlify.app");
+    const response = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData.toString(),
