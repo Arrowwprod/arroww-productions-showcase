@@ -1,72 +1,132 @@
-import { useEffect, useRef } from "react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useState, useEffect } from "react";
+import logoImg from "../../arww_logo.png";
 
-gsap.registerPlugin(ScrollTrigger);
+const cols = [
+  { title: "Studio", links: [{ label: "Philosophy", href: "#philosophy" }, { label: "Services", href: "#services" }, { label: "Work", href: "#" }, { label: "Journal", href: "#" }] },
+  { title: "Company", links: [{ label: "About", href: "#" }, { label: "Careers", href: "#" }, { label: "Press", href: "#" }, { label: "Contact", href: "#contact" }] },
+  { title: "Social", links: [{ label: "Instagram", href: "#" }, { label: "LinkedIn", href: "#" }, { label: "X / Twitter", href: "#" }, { label: "Behance", href: "#" }] },
+];
 
 export function Footer() {
-  const ref = useRef<HTMLElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.to(".big-mark", {
-        yPercent: -10,
-        ease: "none",
-        scrollTrigger: {
-          trigger: ref.current,
-          start: "top bottom",
-          end: "bottom bottom",
-          scrub: true,
-        },
-      });
-    }, ref);
-    return () => ctx.revert();
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   return (
-    <footer ref={ref} className="relative pt-24 pb-10 px-6 overflow-hidden">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10 pb-16 border-b border-foreground/10">
+    <footer style={{ position: "relative", padding: isMobile ? "4rem 1.5rem 2.5rem" : "6rem 2rem 3rem", overflow: "hidden" }}>
+      {/* Top divider */}
+      <div style={{ position: "absolute", top: 0, left: isMobile ? "1.5rem" : "2rem", right: isMobile ? "1.5rem" : "2rem", height: 1, background: "rgba(255,255,255,0.07)" }} />
+
+      <div style={{ margin: "0 auto", maxWidth: 1400 }}>
+        {/* Main grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1.6fr 1fr 1fr 1fr",
+          gap: isMobile ? "2.5rem" : "3rem",
+          paddingBottom: isMobile ? "2.5rem" : "4rem",
+          borderBottom: "1px solid rgba(255,255,255,0.07)"
+        }}>
+          {/* Brand col */}
           <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-foreground" />
-              <span className="font-semibold tracking-tight">Arroww Productions</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.25rem" }}>
+              <img
+                src={logoImg}
+                alt="Arroww"
+                style={{ height: 20, width: "auto", objectFit: "contain", filter: "brightness(0) invert(1)", opacity: 0.85 }}
+              />
+              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)", letterSpacing: "-0.02em" }}>Arroww Productions</span>
             </div>
-            <p className="mt-4 text-sm text-muted-foreground max-w-xs">
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", lineHeight: 1.7, margin: "0 0 2rem", maxWidth: 260 }}>
               A media &amp; marketing studio directing the brands of tomorrow.
             </p>
+            {/* Social icons row */}
+            <div style={{ display: "flex", gap: 10 }}>
+              {["IG", "LI", "X", "Be"].map((s) => (
+                <a
+                  key={s}
+                  href="#"
+                  style={{
+                    width: 34, height: 34, borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.35)",
+                    textDecoration: "none", letterSpacing: "0.05em",
+                    transition: "border-color 0.2s, color 0.2s",
+                  }}
+                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "rgba(255,255,255,0.25)"; el.style.color = "rgba(255,255,255,0.8)"; }}
+                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "rgba(255,255,255,0.08)"; el.style.color = "rgba(255,255,255,0.35)"; }}
+                >
+                  {s}
+                </a>
+              ))}
+            </div>
           </div>
-          <FooterCol title="Studio" links={["Philosophy", "Services", "Work", "Journal"]} />
-          <FooterCol title="Company" links={["About", "Careers", "Press", "Contact"]} />
-          <FooterCol title="Social" links={["Instagram", "LinkedIn", "X / Twitter", "Behance"]} />
+
+          {/* Nav cols — 2 columns on mobile, individual on desktop */}
+          {isMobile ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
+              {cols.map((col) => (
+                <div key={col.title}>
+                  <h4 style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.28)", marginBottom: "1.25rem", fontWeight: 600 }}>
+                    {col.title}
+                  </h4>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {col.links.map((l) => (
+                      <li key={l.label}>
+                        <a
+                          href={l.href}
+                          style={{ fontSize: 13.5, color: "rgba(255,255,255,0.45)", textDecoration: "none", transition: "color 0.2s" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)"; }}
+                        >
+                          {l.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            cols.map((col) => (
+              <div key={col.title}>
+                <h4 style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.28)", marginBottom: "1.25rem", fontWeight: 600 }}>
+                  {col.title}
+                </h4>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {col.links.map((l) => (
+                    <li key={l.label}>
+                      <a
+                        href={l.href}
+                        style={{ fontSize: 13.5, color: "rgba(255,255,255,0.45)", textDecoration: "none", transition: "color 0.2s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)"; }}
+                      >
+                        {l.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-8 text-xs text-muted-foreground">
-          <span>© {new Date().getFullYear()} Arroww Productions. All rights reserved.</span>
-          <span>Designed &amp; built in-house.</span>
-        </div>
-
-        <div className="big-mark mt-16 select-none text-center text-[clamp(4rem,22vw,22rem)] font-semibold tracking-[-0.06em] leading-[0.85] bg-gradient-to-b from-foreground/90 to-foreground/10 bg-clip-text text-transparent">
-          arroww→
+        {/* Bottom bar */}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", paddingTop: "2rem", gap: "0.75rem" }}>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.22)" }}>
+            © {new Date().getFullYear()} Arroww Productions. All rights reserved.
+          </span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.22)" }}>
+            Designed &amp; directed in-house.
+          </span>
         </div>
       </div>
     </footer>
-  );
-}
-
-function FooterCol({ title, links }: { title: string; links: string[] }) {
-  return (
-    <div>
-      <h4 className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-4">{title}</h4>
-      <ul className="space-y-2">
-        {links.map((l) => (
-          <li key={l}>
-            <a href="#" className="text-sm hover:text-foreground/100 text-foreground/70 transition-colors">
-              {l}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

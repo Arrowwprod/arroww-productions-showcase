@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useLenis } from "@/hooks/use-lenis";
 import { Dock } from "@/components/landing/Dock";
 import { Hero } from "@/components/landing/Hero";
-
+import { VideoCanvas } from "@/components/landing/VideoCanvas";
 import { Philosophy } from "@/components/landing/Philosophy";
 import { Services } from "@/components/landing/Services";
+import { Workflow } from "@/components/landing/Workflow";
 import { Contact } from "@/components/landing/Contact";
 import { Footer } from "@/components/landing/Footer";
 
@@ -33,14 +34,18 @@ export const Route = createFileRoute("/")({
 function Index() {
   useLenis();
   return (
-    <main className="relative bg-background text-foreground">
-      <Dock />
-      <Hero />
-      
-      <Philosophy />
-      <Services />
-      <Contact />
-      <Footer />
+    <main style={{ position: "relative", minHeight: "100vh", background: "transparent", color: "#f8f8f8" }}>
+      <VideoCanvas />
+      {/* All sections sit above the fixed canvas */}
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Dock />
+        <Hero />
+        <Philosophy />
+        <Services />
+        <Workflow />
+        <Contact />
+        <Footer />
+      </div>
     </main>
   );
 }

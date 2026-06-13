@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -7,10 +8,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -37,9 +36,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -76,21 +72,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // ── Primary SEO ────────────────────────────────────────────────
+      { title: "Arroww Productions — We craft brands that move people." },
+      { name: "description", content: "A full-stack media & marketing studio building cinematic identities, growth engines, and digital products for ambitious teams." },
+      { name: "author", content: "Arroww Productions" },
+      { name: "keywords", content: "branding, marketing, media studio, digital identity, content production, growth strategy, social media, website development" },
+      { name: "robots", content: "index, follow" },
+      // ── Open Graph ─────────────────────────────────────────────────
+      { property: "og:site_name", content: "Arroww Productions" },
+      { property: "og:title", content: "Arroww Productions — We craft brands that move people." },
+      { property: "og:description", content: "A full-stack media & marketing studio building cinematic identities, growth engines, and digital products for ambitious teams." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { property: "og:url", content: "https://arrowwproductions.netlify.app" },
+      // ── Twitter Card ───────────────────────────────────────────────
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Arroww Productions — We craft brands that move people." },
+      { name: "twitter:description", content: "A full-stack media & marketing studio building cinematic identities, growth engines, and digital products for ambitious teams." },
+      // ── Security meta ──────────────────────────────────────────────
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
+      { httpEquiv: "X-Content-Type-Options", content: "nosniff" },
+      // ── Theme / PWA ────────────────────────────────────────────────
+      { name: "theme-color", content: "#080808" },
+      { name: "color-scheme", content: "dark" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
+      // Google Fonts preconnect for performance
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      // Favicon
+      { rel: "icon", type: "image/png", href: "/favicon.ico" },
     ],
   }),
   shellComponent: RootShell,
