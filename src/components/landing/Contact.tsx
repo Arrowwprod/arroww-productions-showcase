@@ -102,6 +102,7 @@ export function Contact() {
   };
 
   useEffect(() => {
+    if (isMobile) return;
     const ctx = gsap.context(() => {
       gsap.from(".c-line", {
         yPercent: 115,
@@ -121,7 +122,7 @@ export function Contact() {
       });
     }, root);
     return () => ctx.revert();
-  }, []);
+  }, [isMobile]);
 
   // Client-side validation before submit
   const validate = (): string | null => {

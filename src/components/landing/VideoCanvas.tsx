@@ -54,7 +54,13 @@ export function VideoCanvas() {
   // SSR & Mobile detection guard
   useEffect(() => {
     setIsMounted(true);
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setIsReady(true); // Hide loading screen instantly on mobile
+      }
+    };
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
@@ -62,7 +68,7 @@ export function VideoCanvas() {
 
   // ── Preload WebP frames: Instant First Frame + Progressive CDN Cache Pre-filling ──
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || isMobile) return; // Completely disable preloading on mobile devices to save bandwidth/memory
     let active = true;
     let loaded = 0;
 
@@ -78,7 +84,6 @@ export function VideoCanvas() {
       setIsReady(true);
 
       // 2. Preload remaining frames in batches of 6 so they are cached in the browser's HTTP cache (from Netlify CDN)
-      // We don't store references in a long-lived array, allowing the browser to garbage-collect the DOM elements
       const loadRemaining = async () => {
         const batchSize = 6;
         for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
@@ -132,11 +137,11 @@ export function VideoCanvas() {
     return () => {
       active = false;
     };
-  }, [isMounted]);
+  }, [isMounted, isMobile]);
 
   // ── Smooth RAF animation loop ─────────────────────────────────────────────
   useEffect(() => {
-    if (!isReady) return;
+    if (!isReady || isMobile) return; // Completely disable RAF animation loop on mobile
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: false });
@@ -161,7 +166,6 @@ export function VideoCanvas() {
 
     const renderFrame = (idx: number) => {
       const targetIdx = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(idx)));
-      // Retrieve frame from the LRU cache (loads instantly from browser cache / CDN at 0ms latency)
       const img = imageCacheRef.current.get(targetIdx);
       if (!img || img.naturalWidth === 0) return;
 
@@ -215,9 +219,21 @@ export function VideoCanvas() {
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
     };
-  }, [isReady]);
+  }, [isReady, isMobile]);
 
   if (!isMounted) return null;
+
+  // Solid black background for mobile viewports
+  if (isMobile) {
+    return (
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        background: "#080808",
+      }} />
+    );
+  }
 
   const pct = Math.min(100, Math.round((loadedCount / TOTAL_FRAMES) * 100));
 
@@ -283,7 +299,7 @@ export function VideoCanvas() {
             width: "100vw",
             height: "100vh",
             imageRendering: "auto",
-            filter: isMobile ? "none" : "contrast(1.06) brightness(1.03) saturate(1.03)",
+            filter: "contrast(1.06) brightness(1.03) saturate(1.03)",
             transform: "translate3d(0, 0, 0)",
             WebkitTransform: "translate3d(0, 0, 0)",
             WebkitBackfaceVisibility: "hidden",
