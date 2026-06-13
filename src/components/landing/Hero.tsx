@@ -192,7 +192,7 @@ export function Hero() {
           }}
         >
           {headline.split(" ").map((w, i) => (
-            <span key={i} style={{ display: "inline-block", overflow: "hidden", verticalAlign: "bottom", marginRight: "0.22em" }}>
+            <span key={i} style={{ display: "inline-block", overflow: "hidden", verticalAlign: "bottom", marginRight: "0.22em", paddingBottom: "0.2em", marginBottom: "-0.2em" }}>
               <span className="word" style={{ display: "inline-block" }}>{w}</span>
             </span>
           ))}
