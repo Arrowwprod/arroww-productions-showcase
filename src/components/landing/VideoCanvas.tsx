@@ -50,6 +50,7 @@ export function VideoCanvas() {
   const [isReady, setIsReady] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [fadeComplete, setFadeComplete] = useState(false);
 
   // SSR & Mobile detection guard
   useEffect(() => {
@@ -58,7 +59,8 @@ export function VideoCanvas() {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (mobile) {
-        setIsReady(true); // Hide loading screen instantly on mobile
+        setIsReady(true);
+        setFadeComplete(true); // Skip preloader entirely on mobile for instant launch
       }
     };
     check();
@@ -66,11 +68,22 @@ export function VideoCanvas() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Unmount loader completely after the fade-out transition concludes
+  useEffect(() => {
+    if (isReady && !isMobile) {
+      const timer = setTimeout(() => {
+        setFadeComplete(true);
+      }, 1600); // matches the 1.6s CSS transition duration
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, isMobile]);
+
   // ── Preload WebP frames: Instant First Frame + Progressive CDN Cache Pre-filling ──
   useEffect(() => {
-    if (!isMounted || isMobile) return; // Completely disable preloading on mobile devices to save bandwidth/memory
+    if (!isMounted || isMobile) return;
     let active = true;
     let loaded = 0;
+    const startTime = Date.now();
 
     // 1. Load the first frame immediately so the site is instantly interactive
     const firstImg = new Image();
@@ -81,7 +94,10 @@ export function VideoCanvas() {
       if (!active) return;
       loaded = 1;
       setLoadedCount(1);
-      setIsReady(true);
+
+      // Enforce a minimum display time of 1200ms for the premium intro animation
+      const elapsed = Date.now() - startTime;
+      const delay = Math.max(0, 1200 - elapsed);
 
       // 2. Preload remaining frames in batches of 6 so they are cached in the browser's HTTP cache (from Netlify CDN)
       const loadRemaining = async () => {
@@ -121,9 +137,10 @@ export function VideoCanvas() {
 
       setTimeout(() => {
         if (active) {
+          setIsReady(true);
           loadRemaining();
         }
-      }, 150);
+      }, delay);
     };
 
     if (firstImg.complete && firstImg.naturalWidth > 0) {
@@ -141,13 +158,12 @@ export function VideoCanvas() {
 
   // ── Smooth RAF animation loop ─────────────────────────────────────────────
   useEffect(() => {
-    if (!isReady || isMobile) return; // Completely disable RAF animation loop on mobile
+    if (!isReady || isMobile) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    // High-quality upscaling on the GPU
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
@@ -169,7 +185,6 @@ export function VideoCanvas() {
       const img = imageCacheRef.current.get(targetIdx);
       if (!img || img.naturalWidth === 0) return;
 
-      // Draw using physical resolution of the canvas directly (bypassing subpixel transform blur)
       const cw = canvas.width;
       const ch = canvas.height;
       const ir = img.naturalWidth / img.naturalHeight;
@@ -184,10 +199,9 @@ export function VideoCanvas() {
     };
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 3); // support up to 3x Retina/UHD screens
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
       logicalW = window.innerWidth;
       logicalH = window.innerHeight;
-      // Physical pixels resolution
       canvas.width  = logicalW * dpr;
       canvas.height = logicalH * dpr;
       
@@ -196,7 +210,6 @@ export function VideoCanvas() {
       renderFrame(currentFrame);
     };
 
-    // RAF loop — smoothly lerps currentFrame toward targetFrame
     const tick = () => {
       targetFrame = getTargetFrame();
       const diff  = targetFrame - currentFrame;
@@ -239,45 +252,130 @@ export function VideoCanvas() {
 
   return (
     <>
-      {/* ── Loading screen ─────────────────────────────────────── */}
-      {!isReady && (
+      {/* ── Layered Atmospheric Cloud/Fog Preloader ─────────────────── */}
+      {!fadeComplete && (
         <div style={{
-          position: "fixed", inset: 0, zIndex: 200,
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
+          position: "fixed",
+          inset: 0,
+          zIndex: 200,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
           background: "#080808",
+          overflow: "hidden",
+          pointerEvents: isReady ? "none" : "auto",
+          opacity: isReady ? 0 : 1,
+          transform: isReady ? "scale(1.05)" : "scale(1)",
+          filter: isReady ? "blur(30px)" : "blur(0px)",
+          transition: "opacity 1.6s cubic-bezier(0.22, 1, 0.36, 1), transform 1.6s cubic-bezier(0.22, 1, 0.36, 1), filter 1.6s cubic-bezier(0.22, 1, 0.36, 1)",
         }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, width: 260 }}>
-            {/* Logo placeholder while loading */}
+          {/* Moving atmospheric cloud layers */}
+          <div className="preloader-cloud cloud-1" style={{
+            position: "absolute",
+            width: "80vw",
+            height: "80vw",
+            maxWidth: 1000,
+            maxHeight: 1000,
+            borderRadius: "50%",
+            filter: "blur(120px)",
+            opacity: 0.08,
+            pointerEvents: "none",
+            background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)",
+            top: "-20%",
+            left: "-10%",
+            animation: "drift1 24s infinite alternate ease-in-out",
+          }} />
+          <div className="preloader-cloud cloud-2" style={{
+            position: "absolute",
+            width: "90vw",
+            height: "90vw",
+            maxWidth: 1200,
+            maxHeight: 1200,
+            borderRadius: "50%",
+            filter: "blur(140px)",
+            opacity: 0.06,
+            pointerEvents: "none",
+            background: "radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)",
+            bottom: "-30%",
+            right: "-15%",
+            animation: "drift2 28s infinite alternate ease-in-out",
+          }} />
+          <div className="preloader-cloud cloud-3" style={{
+            position: "absolute",
+            width: "70vw",
+            height: "70vw",
+            maxWidth: 900,
+            maxHeight: 900,
+            borderRadius: "50%",
+            filter: "blur(100px)",
+            opacity: 0.05,
+            pointerEvents: "none",
+            background: "radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%)",
+            top: "20%",
+            left: "35%",
+            animation: "drift3 18s infinite alternate ease-in-out",
+          }} />
+
+          {/* Central minimal branding */}
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 16,
+            position: "relative",
+            zIndex: 10,
+          }}>
+            {/* Pulsing indicator orb */}
             <div style={{
-              width: 40, height: 40, borderRadius: "50%",
-              border: "1px solid rgba(255,255,255,0.08)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              marginBottom: 8,
+              width: 50,
+              height: 50,
+              borderRadius: "50%",
+              border: "1px solid rgba(255,255,255,0.06)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 4,
             }}>
               <div style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: "rgba(255,255,255,0.4)",
-                animation: "pulse 1.6s ease-in-out infinite",
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.6)",
+                animation: "pulse 2s ease-in-out infinite",
               }} />
             </div>
+
             <span style={{
-              fontSize: 9, letterSpacing: "0.3em",
-              textTransform: "uppercase", color: "#444",
+              fontSize: 16,
+              letterSpacing: "0.5em",
+              textTransform: "uppercase",
+              color: "#fff",
+              fontWeight: 300,
+              fontFamily: "system-ui, sans-serif",
+              marginLeft: "0.5em", // center offset alignment due to letter-spacing
+            }}>
+              Arroww
+            </span>
+
+            <span style={{
+              fontSize: 8,
+              letterSpacing: "0.25em",
+              textTransform: "uppercase",
+              color: "rgba(255,255,255,0.3)",
               fontFamily: "system-ui, sans-serif",
             }}>
-              Arroww Productions
+              Studio Preload
             </span>
-            {/* Progress track */}
-            <div style={{ width: "100%", height: 1, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{
-                height: "100%", width: `${pct}%`,
-                background: "rgba(255,255,255,0.7)",
-                transition: "width 0.3s ease-out",
-              }} />
-            </div>
-            <span style={{ fontFamily: "monospace", fontSize: 10, color: "#3a3a3a" }}>
-              {pct}%
+
+            {/* Subtle progress text */}
+            <span style={{
+              fontFamily: "monospace",
+              fontSize: 10,
+              color: "rgba(255,255,255,0.2)",
+              marginTop: 8,
+            }}>
+              [{String(pct).padStart(3, "0")} / 100]
             </span>
           </div>
         </div>
@@ -306,7 +404,7 @@ export function VideoCanvas() {
             willChange: "transform",
           }}
         />
-        {/* Cinematic gradient — darker at top/bottom and subtle center dark overlay for text legibility */}
+        {/* Cinematic gradient overlay */}
         <div style={{
           position: "absolute", inset: 0,
           background: [
@@ -319,11 +417,23 @@ export function VideoCanvas() {
         }} />
       </div>
 
-      {/* Keyframe for pulse animation */}
+      {/* Keyframe animations for clouds and pulse */}
       <style>{`
         @keyframes pulse {
-          0%, 100% { opacity: 0.2; transform: scale(1); }
-          50%       { opacity: 0.9; transform: scale(1.15); }
+          0%, 100% { opacity: 0.15; transform: scale(1); }
+          50%       { opacity: 0.85; transform: scale(1.25); }
+        }
+        @keyframes drift1 {
+          0% { transform: translate(0, 0) scale(1); }
+          100% { transform: translate(80px, 60px) scale(1.1); }
+        }
+        @keyframes drift2 {
+          0% { transform: translate(0, 0) scale(1.05); }
+          100% { transform: translate(-100px, -50px) scale(0.95); }
+        }
+        @keyframes drift3 {
+          0% { transform: translate(0, 0) scale(0.95); }
+          100% { transform: translate(60px, -70px) scale(1.15); }
         }
       `}</style>
     </>
