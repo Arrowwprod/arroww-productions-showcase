@@ -6,9 +6,46 @@ const TOTAL_FRAMES = 241;
 // 0.10 feels cinematic without feeling stuck
 const LERP = 0.10;
 
+// LRU Image Cache to limit active GPU texture memory
+// This prevents mobile Out-Of-Memory (OOM) crashes by keeping at most 24 decoded frames in JS/GPU memory,
+// while relying on the browser's native HTTP cache (Netlify CDN) for instant, lossless 0ms loading.
+class ImageLRUCache {
+  private cache = new Map<number, HTMLImageElement>();
+  private maxCacheSize = 24;
+
+  public get(idx: number): HTMLImageElement {
+    if (this.cache.has(idx)) {
+      const img = this.cache.get(idx)!;
+      // Refresh key order (LRU)
+      this.cache.delete(idx);
+      this.cache.set(idx, img);
+      return img;
+    }
+
+    const img = new Image();
+    img.src = `/frames/frame_${String(idx).padStart(3, "0")}.webp`;
+    this.cache.set(idx, img);
+
+    // Evict least recently used image to free memory
+    if (this.cache.size > this.maxCacheSize) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.cache.delete(oldestKey);
+      }
+    }
+
+    return img;
+  }
+
+  // Pre-fill cache for a specific frame if needed
+  public set(idx: number, img: HTMLImageElement) {
+    this.cache.set(idx, img);
+  }
+}
+
 export function VideoCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imagesRef = useRef<HTMLImageElement[]>([]);
+  const imageCacheRef = useRef<ImageLRUCache>(new ImageLRUCache());
   const [loadedCount, setLoadedCount] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -23,19 +60,16 @@ export function VideoCanvas() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // ── Preload WebP frames: Instant First Frame + Progressive Batch Loading ──
+  // ── Preload WebP frames: Instant First Frame + Progressive CDN Cache Pre-filling ──
   useEffect(() => {
     if (!isMounted) return;
     let active = true;
     let loaded = 0;
-    const isMobileDevice = window.innerWidth < 768;
-    const step = isMobileDevice ? 3 : 1; // Downsample 3x on mobile to save memory and prevent OOM crash
-    const images: HTMLImageElement[] = new Array(TOTAL_FRAMES);
 
     // 1. Load the first frame immediately so the site is instantly interactive
     const firstImg = new Image();
     firstImg.src = `/frames/frame_000.webp`;
-    images[0] = firstImg;
+    imageCacheRef.current.set(0, firstImg);
 
     const onFirstFrameLoaded = () => {
       if (!active) return;
@@ -43,26 +77,21 @@ export function VideoCanvas() {
       setLoadedCount(1);
       setIsReady(true);
 
-      // 2. Load the remaining frames in sequential batches to prevent network & GPU congestion
+      // 2. Preload remaining frames in batches of 6 so they are cached in the browser's HTTP cache (from Netlify CDN)
+      // We don't store references in a long-lived array, allowing the browser to garbage-collect the DOM elements
       const loadRemaining = async () => {
-        const batchSize = isMobileDevice ? 4 : 6;
-        for (let i = step; i < TOTAL_FRAMES; i += step * batchSize) {
+        const batchSize = 6;
+        for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
           if (!active) return;
           const batch = [];
 
-          for (let j = 0; j < batchSize && i + j * step < TOTAL_FRAMES; j++) {
-            const idx = i + j * step;
-            if (idx === 0) continue; // Skip first frame (already loaded)
-            
-            const img = new Image();
-            images[idx] = img;
+          for (let j = 0; j < batchSize && i + j < TOTAL_FRAMES; j++) {
+            const idx = i + j;
+            if (idx === 0) continue;
 
             const promise = new Promise<void>((resolve) => {
+              const img = new Image();
               const done = () => {
-                if (!active) {
-                  resolve();
-                  return;
-                }
                 loaded++;
                 setLoadedCount(loaded);
                 resolve();
@@ -81,26 +110,10 @@ export function VideoCanvas() {
             batch.push(promise);
           }
 
-          // Wait for the current batch to be downloaded and decoded before requesting the next one
           await Promise.all(batch);
-        }
-
-        // Always load the very last frame to guarantee the ending visual is correct
-        const lastIdx = TOTAL_FRAMES - 1;
-        if (!images[lastIdx] && active) {
-          const img = new Image();
-          images[lastIdx] = img;
-          img.src = `/frames/frame_${String(lastIdx).padStart(3, "0")}.webp`;
-          img.decode().then(() => {
-            if (active) {
-              loaded++;
-              setLoadedCount(loaded);
-            }
-          }).catch(() => {});
         }
       };
 
-      // Defer the background load slightly to give priority to other initial assets (styles, fonts, etc.)
       setTimeout(() => {
         if (active) {
           loadRemaining();
@@ -116,7 +129,6 @@ export function VideoCanvas() {
         .catch(onFirstFrameLoaded);
     }
 
-    imagesRef.current = images;
     return () => {
       active = false;
     };
@@ -149,28 +161,9 @@ export function VideoCanvas() {
 
     const renderFrame = (idx: number) => {
       const targetIdx = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(idx)));
-      let img = imagesRef.current[targetIdx];
-      
-      // Nearest loaded frame fallback logic
-      if (!img || img.naturalWidth === 0) {
-        let nearestIdx = -1;
-        let minDiff = Infinity;
-        for (let k = 0; k < TOTAL_FRAMES; k++) {
-          const checkImg = imagesRef.current[k];
-          if (checkImg && checkImg.naturalWidth > 0) {
-            const diff = Math.abs(k - targetIdx);
-            if (diff < minDiff) {
-              minDiff = diff;
-              nearestIdx = k;
-            }
-          }
-        }
-        if (nearestIdx !== -1) {
-          img = imagesRef.current[nearestIdx];
-        } else {
-          return;
-        }
-      }
+      // Retrieve frame from the LRU cache (loads instantly from browser cache / CDN at 0ms latency)
+      const img = imageCacheRef.current.get(targetIdx);
+      if (!img || img.naturalWidth === 0) return;
 
       // Draw using physical resolution of the canvas directly (bypassing subpixel transform blur)
       const cw = canvas.width;
@@ -226,9 +219,7 @@ export function VideoCanvas() {
 
   if (!isMounted) return null;
 
-  // Calculate actual display percentage dynamically based on step scaling
-  const maxPossibleFrames = isMobile ? Math.ceil(TOTAL_FRAMES / 3) + 1 : TOTAL_FRAMES;
-  const pct = Math.min(100, Math.round((loadedCount / maxPossibleFrames) * 100));
+  const pct = Math.min(100, Math.round((loadedCount / TOTAL_FRAMES) * 100));
 
   return (
     <>
