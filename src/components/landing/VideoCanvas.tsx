@@ -16,36 +16,85 @@ export function VideoCanvas() {
   // SSR guard
   useEffect(() => { setIsMounted(true); }, []);
 
-  // ── Preload all WebP frames with GPU pre-decoding ──────────────────────────
+  // ── Preload WebP frames: Instant First Frame + Progressive Batch Loading ──
   useEffect(() => {
     if (!isMounted) return;
     let active = true;
     let loaded = 0;
-    const images: HTMLImageElement[] = [];
+    const images: HTMLImageElement[] = new Array(TOTAL_FRAMES);
 
-    for (let i = 0; i < TOTAL_FRAMES; i++) {
-      const img = new Image();
-      img.src = `/frames/frame_${String(i).padStart(3, "0")}.webp`;
-      images.push(img);
+    // 1. Load the first frame immediately so the site is instantly interactive
+    const firstImg = new Image();
+    firstImg.src = `/frames/frame_000.webp`;
+    images[0] = firstImg;
 
-      const done = () => {
-        if (!active) return;
-        loaded++;
-        setLoadedCount(loaded);
-        if (loaded === TOTAL_FRAMES) setIsReady(true);
+    const onFirstFrameLoaded = () => {
+      if (!active) return;
+      loaded = 1;
+      setLoadedCount(1);
+      setIsReady(true);
+
+      // 2. Load the remaining frames in sequential batches of 6 to prevent network & GPU congestion
+      const loadRemaining = async () => {
+        const batchSize = 6;
+        for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
+          if (!active) return;
+          const batch = [];
+
+          for (let j = 0; j < batchSize && i + j < TOTAL_FRAMES; j++) {
+            const idx = i + j;
+            const img = new Image();
+            images[idx] = img;
+
+            const promise = new Promise<void>((resolve) => {
+              const done = () => {
+                if (!active) {
+                  resolve();
+                  return;
+                }
+                loaded++;
+                setLoadedCount(loaded);
+                resolve();
+              };
+
+              img.src = `/frames/frame_${String(idx).padStart(3, "0")}.webp`;
+              if (img.complete && img.naturalWidth > 0) {
+                done();
+              } else {
+                img.decode()
+                  .then(done)
+                  .catch(done);
+              }
+            });
+
+            batch.push(promise);
+          }
+
+          // Wait for the current batch to be downloaded and decoded before requesting the next one
+          await Promise.all(batch);
+        }
       };
 
-      if (img.complete && img.naturalWidth > 0) {
-        done();
-      } else {
-        // Decode image on the GPU asynchronously before marking as loaded
-        img.decode()
-          .then(done)
-          .catch(done);
-      }
+      // Defer the background load slightly to give priority to other initial assets (styles, fonts, etc.)
+      setTimeout(() => {
+        if (active) {
+          loadRemaining();
+        }
+      }, 150);
+    };
+
+    if (firstImg.complete && firstImg.naturalWidth > 0) {
+      onFirstFrameLoaded();
+    } else {
+      firstImg.decode()
+        .then(onFirstFrameLoaded)
+        .catch(onFirstFrameLoaded);
     }
+
     imagesRef.current = images;
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [isMounted]);
 
   // ── Smooth RAF animation loop ─────────────────────────────────────────────
